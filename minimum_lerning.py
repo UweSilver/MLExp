@@ -14,7 +14,7 @@ torch.manual_seed(seed)
 np.random.seed(seed)
 random.seed(seed)
 state = env.reset()
-for t in tqdm(range(10)):
+for t in tqdm(range(1000)):
     env.render()
     action = agent.select_exploratory_action(state)
     next_state, reward, done, info = env.step(action)

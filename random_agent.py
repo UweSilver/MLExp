@@ -12,5 +12,4 @@ class RandomAgent(Agent):
     
     def select_exploratory_action(self, state):
         v = np.full(1, random.random() - 0.5 * 4.)
-        print(state)
         return v
