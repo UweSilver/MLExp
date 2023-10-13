@@ -13,3 +13,8 @@ class RandomAgent(Agent):
     def select_exploratory_action(self, state):
         v = np.full(1, random.random() - 0.5 * 4.)
         return v
+    
+    def save_models(self, path):
+        with open(path, encoding='utf-8', mode='w') as file:
+            file.write("empty!")
+        pass
