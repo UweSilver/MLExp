@@ -1,7 +1,7 @@
 from matplotlib import pyplot
 import numpy as np
 
-agent_name = "random"
+agent_name = "TableQAgent"
 agent_seed = 2
 agent_train_range = range(1, 6)
 eval_count = 10

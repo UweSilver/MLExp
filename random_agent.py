@@ -15,6 +15,9 @@ class RandomAgent(Agent):
         return v
     
     def save_models(self, path):
-        with open(path, encoding='utf-8', mode='w') as file:
+        with open(path + '_random', encoding='utf-8', mode='w') as file:
             file.write("empty!")
         pass
+
+    def load_models(self, path):
+        return super().load_models(path)
