@@ -8,6 +8,7 @@ eval_count = 10
 
 result = []
 
+
 for i in agent_train_range:
     r = np.zeros(eval_count)
     with open("out\\results\\" + agent_name + "_" + str(agent_seed) + "_" + str(i), mode="r", encoding="utf-8") as file:

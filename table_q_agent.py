@@ -65,7 +65,3 @@ class TableQAgent(Agent):
 
     def load_models(self, path):
         self.table = np.loadtxt(path + '_tableq_' + str(cuberootK) + '_' + str(L))
-
-    def get_signature_values(self):
-        signature = []
-        return signature.extend(super().get_signature_values())
