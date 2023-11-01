@@ -9,6 +9,3 @@ class Agent:
         pass
     def train(self, state, action, next_state, reward, done):
         pass
-    def get_signature_values(self, agent_type_name, train_step_count, train_seed):
-        signature =  [agent_type_name, train_step_count, train_seed]
-        return signature
