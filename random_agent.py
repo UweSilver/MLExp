@@ -21,3 +21,7 @@ class RandomAgent(Agent):
 
     def load_models(self, path):
         return super().load_models(path)
+    
+    def get_signature_values(self):
+        signature = []
+        return signature.extend(super().get_signature_values())
