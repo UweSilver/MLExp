@@ -2,8 +2,8 @@ from agent import Agent
 import random
 import numpy as np
 import math
-cuberootK = 10 #
-L = 1000
+cuberootK = 4 #
+L = 4*4*4
 gamma = 0.9
 alpha = 0.8
 epsilon = 0.3
@@ -41,7 +41,6 @@ class TableQAgent(Agent):
         random.seed(seed)
         np.random.seed(seed=seed)
         self.table = np.random.randn(cuberootK * cuberootK * cuberootK, L)
-        print(str(self.table))
         super().__init__()
         pass
 
