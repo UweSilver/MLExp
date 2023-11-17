@@ -6,6 +6,8 @@ import random
 
 import random_agent
 import table_q_agent
+import table_q_with_exp_replay_agent
+
 seed = 2
 env = gym.make('Pendulum-v0')
 

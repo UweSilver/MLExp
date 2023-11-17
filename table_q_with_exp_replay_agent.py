@@ -17,7 +17,6 @@ def action2idx(action, L):
 
 def idx2action(idx, L):
     action = np.full(1, (1. / float(L) * float(idx) - 0.5) * 4.)
-    # print("idx: " + str(idx) + " action: " + str(action))
     return action
 
 def maxQvalue(table, state, cuberootK):
@@ -28,13 +27,11 @@ def maxAction(table, state, L, cuberootK):
     maxIdx = 0
     for j in range(0, L):
         if maxValue < table[state2idx(state, cuberootK)][j]:
-            maxValue = max(maxValue, table[state2idx(state, cuberootK)][j])
+            maxValue = max(maxValue, table[state2idx(state, L)][j])
             maxIdx = j
-
-    #print("max Idx: " + str(maxIdx) + " maxValue: " + str(maxValue) + " state Idx: " + str(state2idx(state)) + " state: " + str(state))
     return idx2action(maxIdx, L)
 
-class TableQAgent(Agent):
+class TableQWithExpReplayAgent(Agent):
     def __init__(self, seed) -> None:
         random.seed(seed)
         np.random.seed(seed=seed)
@@ -43,6 +40,8 @@ class TableQAgent(Agent):
         self.gamma = 0.9
         self.alpha = 0.8
         self.epsilon = 0.3
+        self.batch_size = 10
+        self.exp_record = []
         self.table = np.random.randn(self.cuberootK * self.cuberootK * self.cuberootK, self.L)
         super().__init__()
         pass
@@ -59,11 +58,17 @@ class TableQAgent(Agent):
             return idx
     
     def train(self, state, action, next_state, reward, done):
-        delta = reward + self.gamma * maxQvalue(self.table, next_state, self.cuberootK) - self.table[state2idx(state, self.cuberootK)][action2idx(action, self.L)]
-        self.table[state2idx(state, self.cuberootK)][action2idx(action, self.L)] = self.table[state2idx(state, self.cuberootK)][action2idx(action, self.L)] + self.alpha * delta
+        self.exp_record.append((state, action, next_state, reward))
+
+        if len(self.exp_record) >= self.batch_size:
+            for i in range(0, len(self.exp_record)):
+                h = random.randint(0, len(self.exp_record)-1)
+                h_state, h_action, h_next_state, h_reward = self.exp_record[h]
+                delta = h_reward + self.gamma * maxQvalue(self.table, h_next_state, self.cuberootK) - self.table[state2idx(h_state, self.cuberootK)][action2idx(h_action, self.L)]
+                self.table[state2idx(h_state, self.cuberootK)][action2idx(h_action, self.L)] = self.table[state2idx(h_state, self.cuberootK)][action2idx(h_action, self.L)] + self.alpha * delta
 
     def save_models(self, path):
-        np.savetxt(path + '_tableq_' + str(self.cuberootK) + '_' + str(self.L), self.table)
+        np.savetxt(path + '_tableq_with_exp_replay_' + str(self.cuberootK) + '_' + str(self.L), self.table)
 
     def load_models(self, path):
-        self.table = np.loadtxt(path + '_tableq_' + str(self.cuberootK) + '_' + str(self.L))
+        self.table = np.loadtxt(path + '_tableq_with_exp_replay_' + str(self.cuberootK) + '_' + str(self.L))
