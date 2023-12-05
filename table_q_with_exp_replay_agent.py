@@ -4,19 +4,20 @@ import numpy as np
 import math
 
 def state2idx(state, cuberootK):
-    x = math.floor((state[0] / 2. + 0.5) * (cuberootK - 1.))
-    y = math.floor((state[1] / 2. + 0.5) * (cuberootK - 1.))
-    z = math.floor((state[2] / 16. + 0.5) * (cuberootK - 1.))
+    x = int((state[0] / 2. + 0.5) * (cuberootK))
+    y = int((state[1] / 2. + 0.5) * (cuberootK))
+    z = int((state[2] / 16. + 0.5) * (cuberootK))
     idx = z * (cuberootK * cuberootK) + y * cuberootK + x
-    # print("\nx, y, z, idx = " + str(x) + ", " + str(y) + ", " + str(z) + ", " + str(idx) + "\n")
+    #print("\nx, y, z, idx = " + str(x) + ", " + str(y) + ", " + str(z) + ", " + str(idx))
     return idx
 
 def action2idx(action, L):
-    idx = math.floor(action[0] / 4 + 0.5 * (L - 1.))
+    idx = math.floor((action[0] / 4 + 0.5) * (L - 1.))
     return int(idx)
 
 def idx2action(idx, L):
     action = np.full(1, (1. / float(L) * float(idx) - 0.5) * 4.)
+    #print("index = " + str(idx) + " action = " + str(action))
     return action
 
 def maxQvalue(table, state, cuberootK):
@@ -27,41 +28,50 @@ def maxAction(table, state, L, cuberootK):
     maxIdx = 0
     for j in range(0, L):
         if maxValue < table[state2idx(state, cuberootK)][j]:
-            maxValue = max(maxValue, table[state2idx(state, L)][j])
+            maxValue = table[state2idx(state, cuberootK)][j]
             maxIdx = j
+    #print("max action idx = " + str(maxIdx))
     return idx2action(maxIdx, L)
 
 class TableQWithExpReplayAgent(Agent):
     def __init__(self, seed) -> None:
         random.seed(seed)
         np.random.seed(seed=seed)
-        self.cuberootK = 10 #
-        self.L = 10
-        self.gamma = 0.9
-        self.alpha = 0.8
-        self.epsilon = 0.3
-        self.batch_size = 10
+        self.cuberootK = 3 #
+        self.L = 9
+        self.gamma = 0.99
+        self.alpha = 0.0003
+        self.epsilon = 0.05
+        self.batch_size = 256
         self.exp_record = []
         self.table = np.random.randn(self.cuberootK * self.cuberootK * self.cuberootK, self.L)
+        for k in range(0, self.cuberootK * self.cuberootK * self.cuberootK):
+            for l in range(0, self.L):
+                self.table[k][l] = self.table[k][l] * 0.000000008
         super().__init__()
         pass
 
     def select_action(self, state):
-        return maxAction(self.table, state, self.L, self.cuberootK)
+        action = maxAction(self.table, state, self.L, self.cuberootK)
+        #print("select_action = " + str(action2idx(action, self.L)))
+        return action
     
     def select_exploratory_action(self, state):
         dice = random.random()
         if dice > self.epsilon:
-            return self.select_action(state)
+            action = self.select_action(state)
         else:
-            idx = idx2action(math.floor(random.random() * float(self.L)), self.L)
-            return idx
+            index =  math.floor(random.random() * float(self.L))
+            action = idx2action(index, self.L)
+
+        #print("picked action index =" + str(action2idx(action, self.L)))
+        return action
     
     def train(self, state, action, next_state, reward, done):
         self.exp_record.append((state, action, next_state, reward))
-
+        #print("state idx = " + str(state2idx(state, self.cuberootK)) + " action idx = " + str(action2idx(action, self.L)))
         if len(self.exp_record) >= self.batch_size:
-            for i in range(0, len(self.exp_record)):
+            for i in range(0, self.batch_size):
                 h = random.randint(0, len(self.exp_record)-1)
                 h_state, h_action, h_next_state, h_reward = self.exp_record[h]
                 delta = h_reward + self.gamma * maxQvalue(self.table, h_next_state, self.cuberootK) - self.table[state2idx(h_state, self.cuberootK)][action2idx(h_action, self.L)]

@@ -16,7 +16,7 @@ def train_agent(agent, seed, episode_count):
     for e in range(0, episode_count):
         while True:
             action = agent.select_exploratory_action(state)
-            next_state, reward, done, infor = env.step(action)
+            next_state, reward, done, info = env.step(action)
             agent.train(state, action, next_state, reward, done)
             state = next_state
             if done:

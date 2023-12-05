@@ -38,11 +38,11 @@ class TableQAgent(Agent):
     def __init__(self, seed) -> None:
         random.seed(seed)
         np.random.seed(seed=seed)
-        self.cuberootK = 10 #
+        self.cuberootK = 3 #
         self.L = 10
-        self.gamma = 0.9
-        self.alpha = 0.8
-        self.epsilon = 0.3
+        self.gamma = 0.99
+        self.alpha = 0.0003
+        self.epsilon = 0.05
         self.table = np.random.randn(self.cuberootK * self.cuberootK * self.cuberootK, self.L)
         super().__init__()
         pass

@@ -24,6 +24,7 @@ def eval_agent(agent, eval_episode_count, eval_env_seed):
                 if done:
                     state = env.reset()
                     results.append(reward_sum)
+                    reward_sum = 0
                     break
     env.close()
     return results

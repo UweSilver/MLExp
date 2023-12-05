@@ -2,6 +2,7 @@ import random_agent
 import train
 import eval_agent
 import table_q_agent
+from tqdm import tqdm
 
 from matplotlib import pyplot
 import numpy as np
@@ -20,6 +21,9 @@ for train_count in range(0,train_target):
         agent.save_models("out\\models\\" + str(train_count) + "_" + str(train_episode_count))
 
 results = []
+averages = []
+q25s = []
+q75s = []
 for train_episode_count in range(0, train_episode_target):
     result = np.zeros(train_target * eval_episode_count)
     for train_count in range(0, train_target):
