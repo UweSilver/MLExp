@@ -8,12 +8,12 @@ import multiprocessing
 from matplotlib import pyplot
 import numpy as np
 
-agent_seed = 10
-eval_seed = 123
+agent_seed = 100
+eval_seed = 12
 
 train_target = 5
-train_episode_target = int(500000 / 200)
-eval_episode_count = 10
+train_episode_target = int(1000000 / 200)
+eval_episode_count = 100
 eval_episode_delta = int(train_episode_target / 10)
 
 

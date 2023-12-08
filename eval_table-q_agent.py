@@ -8,8 +8,8 @@ import multiprocessing
 from matplotlib import pyplot
 import numpy as np
 
-agent_seed = 0
-eval_seed = 1234
+agent_seed = 100
+eval_seed = 12
 
 train_target = 5
 train_episode_target = int(500000 / 200)
