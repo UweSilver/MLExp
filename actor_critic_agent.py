@@ -82,14 +82,7 @@ class ActorCriticAgent(Agent):
         h2 = relu(input_sum_1)
         input_sum_2 = self.critic_W_2 @ h2 + self.critic_b_2
         h3 = gh(input_sum_2, self.action_max, self.action_min)
-        self.critic_result = (
-                                self.critic_W_0, 
-                              self.critic_b_0, 
-                              self.critic_W_1,
-                              self.critic_b_1,
-                              self.critic_W_2, 
-                              self.critic_b_2, 
-                              h0, input_sum_0, 
+        self.critic_result = (h0, input_sum_0, 
                               h1, input_sum_1, 
                               h2, input_sum_2, h3)
         return h3
@@ -100,7 +93,7 @@ class ActorCriticAgent(Agent):
         h1 = relu(input_sum_0)
         input_sum_1 = self.actor_W_1 @ h1
         h2 = input_sum_1
-        self.actor_result = (self.actor_W_0, self.actor_b_0, self.actor_W_1, self.actor_b_1, h0, input_sum_0, h1, input_sum_1, h2)
+        self.actor_result = (h0, input_sum_0, h1, input_sum_1, h2)
         return h2
     
     def select_action(self, state):
@@ -109,7 +102,7 @@ class ActorCriticAgent(Agent):
     
     def select_random_action(self, state):
         action = [random.random() - 0.5 * 4.0]
-        self.actor_result = (self.actor_W_0, self.actor_b_0, self.actor_W_1, self.actor_b_1, numpy.array(state).reshape((3, 1)), numpy.zeros((self.mid_h_dim, 1)), numpy.zeros((self.mid_h_dim, 1)), numpy.zeros((self.actor_h2_dim, 1)), numpy.zeros((self.actor_h2_dim, 1)))
+        self.actor_result = (numpy.array(state).reshape((3, 1)), numpy.zeros((self.mid_h_dim, 1)), numpy.zeros((self.mid_h_dim, 1)), numpy.zeros((self.actor_h2_dim, 1)), numpy.zeros((self.actor_h2_dim, 1)))
         return action
 
     def select_exploratory_action(self, state):
@@ -124,54 +117,57 @@ class ActorCriticAgent(Agent):
         return 2.0 * (delta_i - ohm)
     
     def train(self, state, action, next_state, reward, done):
-        h = (state, action, next_state, reward, done, self.actor_result)
+        h = (state, action, next_state, reward, done)
         self.buffer.append(h)
 
         if(len(self.buffer) < self.batch_size):
             return
         
         batch = random.sample(self.buffer, self.batch_size)
-        for (state, action, next_state, reward, done, actor_result) in batch:
-            critic_delta = reward + (1 - done) * self.critic_gamma * self.Qohm(next_state, action)
+        critic_delta = 0
+        critic_grad_2 = 0
+        for (state, action, next_state, reward, done) in batch:
+            critic_delta = critic_delta + reward + (1 - done) * self.critic_gamma * self.Qohm(next_state, action)
+            critic_grad_2 = critic_grad_2 + self.q_loss_prime(critic_delta, self.critic_result[6]) 
 
-            (critic_W_0, critic_b_0, critic_W_1, critic_b_1, critic_W_2, critic_b_2, h0, input_sum_0, h1, input_sum_1, h2, input_sum_2, h3) = self.critic_result
-            critic_grad_2 = self.q_loss_prime(critic_delta, h3)
+        critic_grad_2 = critic_grad_2 / self.batch_size
 
-            mid = (gh_prime(input_sum_2, self.action_max, self.action_min)* critic_grad_2)
-            critic_grad_2_x = sum_prime_x(critic_W_2, h2).transpose() @  mid
-            critic_grad_2_w = sum_prime_w(h2, critic_W_2) *  mid
-            critic_grad_2_b = sum_prime_b(critic_b_2) *  mid
-            
-            mid =     (relu_prime(input_sum_1) * critic_grad_2_x)
-            critic_grad_1_x = sum_prime_x(critic_W_1, h1).transpose() @ mid
-            critic_grad_1_w = sum_prime_w(h1, critic_W_1) *  mid
-            critic_grad_1_b = sum_prime_b(critic_b_1) * mid
-            
-            mid = (relu_prime(input_sum_0) * critic_grad_1_x)
-            critic_grad_0_w = sum_prime_w(h0, critic_W_0)*  numpy.full(critic_W_0.shape, mid) 
-            critic_grad_0_b = sum_prime_b(critic_b_0) *  mid
+        (h0, input_sum_0, h1, input_sum_1, h2, input_sum_2, h3) = self.critic_result
+        mid = (gh_prime(input_sum_2, self.action_max, self.action_min)* critic_grad_2)
+        critic_grad_2_x = sum_prime_x(self.critic_W_2, h2).transpose() @  mid
+        critic_grad_2_w = sum_prime_w(h2, self.critic_W_2) *  mid
+        critic_grad_2_b = sum_prime_b(self.critic_b_2) *  mid
+        
+        mid =     (relu_prime(input_sum_1) * critic_grad_2_x)
+        critic_grad_1_x = sum_prime_x(self.critic_W_1, h1).transpose() @ mid
+        critic_grad_1_w = sum_prime_w(h1, self.critic_W_1) *  mid
+        critic_grad_1_b = sum_prime_b(self.critic_b_1) * mid
+        
+        mid = (relu_prime(input_sum_0) * critic_grad_1_x)
+        critic_grad_0_w = sum_prime_w(h0, self.critic_W_0)*  numpy.full(self.critic_W_0.shape, mid) 
+        critic_grad_0_b = sum_prime_b(self.critic_b_0) *  mid
 
-            self.critic_W_2 = self.critic_W_2 - self.critic_alpha * critic_grad_2_w
-            self.critic_b_2 = self.critic_b_2 - self.critic_alpha * critic_grad_2_b
-            self.critic_W_1 = self.critic_W_1 - self.critic_alpha * critic_grad_1_w
-            self.critic_b_1 = self.critic_b_1 - self.critic_alpha * critic_grad_1_b
-            self.critic_W_0 = self.critic_W_0 - self.critic_alpha * critic_grad_0_w
-            self.critic_b_0 = self.critic_b_0 - self.critic_alpha * critic_grad_0_b
+        self.critic_W_2 = self.critic_W_2 - self.critic_alpha * critic_grad_2_w
+        self.critic_b_2 = self.critic_b_2 - self.critic_alpha * critic_grad_2_b
+        self.critic_W_1 = self.critic_W_1 - self.critic_alpha * critic_grad_1_w
+        self.critic_b_1 = self.critic_b_1 - self.critic_alpha * critic_grad_1_b
+        self.critic_W_0 = self.critic_W_0 - self.critic_alpha * critic_grad_0_w
+        self.critic_b_0 = self.critic_b_0 - self.critic_alpha * critic_grad_0_b
 
-            (actor_W_0, actor_b_0, actor_W_1, actor_b_1, h0, input_sum_0, h1, input_sum_1, h2) = actor_result
-            actor_grad_1 = self.Qohm(state, h2).reshape((1, 1))
-            
-            actor_grad_1_x = sum_prime_x(actor_W_1, h2).transpose() @ actor_grad_1
-            actor_grad_1_w = sum_prime_w(h1, actor_W_1)* actor_grad_1 
-            actor_grad_1_b = sum_prime_b(actor_b_1) * actor_grad_1
+        (h0, input_sum_0, h1, input_sum_1, h2) = self.actor_result
+        actor_grad_1 = self.Qohm(state, h2).reshape((1, 1))
+        
+        actor_grad_1_x = sum_prime_x(self.actor_W_1, h2).transpose() @ actor_grad_1
+        actor_grad_1_w = sum_prime_w(h1, self.actor_W_1)* actor_grad_1 
+        actor_grad_1_b = sum_prime_b(self.actor_b_1) * actor_grad_1
 
-            actor_grad_0_w = sum_prime_w(h0, actor_W_0) * numpy.full(actor_W_0.shape, (relu_prime(input_sum_0).reshape((256, 1))*actor_grad_1_x))
-            actor_grad_0_b = sum_prime_b(actor_b_0) * ( relu_prime(input_sum_0) *actor_grad_1_x)
+        actor_grad_0_w = sum_prime_w(h0, self.actor_W_0) * numpy.full(self.actor_W_0.shape, (relu_prime(input_sum_0).reshape((256, 1))*actor_grad_1_x))
+        actor_grad_0_b = sum_prime_b(self.actor_b_0) * ( relu_prime(input_sum_0) *actor_grad_1_x)
 
-            self.actor_W_1 = self.actor_W_1 - self.actor_alpha * actor_grad_1_w
-            self.actor_b_1 = self.actor_b_1 - self.actor_alpha * actor_grad_1_b
-            self.actor_W_0 = self.actor_W_0 - self.actor_alpha * actor_grad_0_w
-            self.actor_b_0 = self.actor_b_0 - self.actor_alpha * actor_grad_0_b
+        self.actor_W_1 = self.actor_W_1 - self.actor_alpha * actor_grad_1_w
+        self.actor_b_1 = self.actor_b_1 - self.actor_alpha * actor_grad_1_b
+        self.actor_W_0 = self.actor_W_0 - self.actor_alpha * actor_grad_0_w
+        self.actor_b_0 = self.actor_b_0 - self.actor_alpha * actor_grad_0_b
 
         pass
 
