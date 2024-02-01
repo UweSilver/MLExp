@@ -18,6 +18,7 @@ def train_agent(agent, seed, episode_count):
             next_state, reward, done, info = env.step(action)
             agent.train(state, action, next_state, reward, done)
             state = next_state
+            env.render()
             if done:
                 env.seed(seed+e)
                 state = env.reset()
