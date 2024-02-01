@@ -14,13 +14,13 @@ def train_agent(agent, seed, episode_count):
     state = env.reset()
     for e in range(0, episode_count):
         while True:
+            # env.render()
             action = agent.select_exploratory_action(state)
             next_state, reward, done, info = env.step(action)
             agent.train(state, action, next_state, reward, done)
             state = next_state
-            env.render()
             if done:
-                env.seed(seed+e)
+                env.seed(seed)
                 state = env.reset()
                 break
     env.close()
