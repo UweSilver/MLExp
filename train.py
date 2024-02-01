@@ -12,7 +12,7 @@ def train_agent(agent, seed, episode_count):
     #np.random.seed(seed)
     #random.seed(seed)
     state = env.reset()
-    for e in range(0, episode_count):
+    for e in tqdm(range(0, episode_count)):
         while True:
             # env.render()
             action = agent.select_exploratory_action(state)

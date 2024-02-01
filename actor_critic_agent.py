@@ -69,9 +69,9 @@ class ActorCriticAgent(Agent):
         self.action_max = 2.0
         self.action_min = -2.0
         self.epsilon = 0.05
-
         self.buffer = []
         self.batch_size = 256
+        self.texpl = 10000
         return
     
     def Qohm(self, state, action):
@@ -106,8 +106,15 @@ class ActorCriticAgent(Agent):
     def select_action(self, state):
         action = self.Pithete(state)
         return action.tolist()
+    
+    def select_random_action(self, state):
+        action = [random.random() - 0.5 * 4.0]
+        self.actor_result = (self.actor_W_0, self.actor_b_0, self.actor_W_1, self.actor_b_1, numpy.array(state).reshape((3, 1)), numpy.zeros((self.mid_h_dim, 1)), numpy.zeros((self.mid_h_dim, 1)), numpy.zeros((self.actor_h2_dim, 1)), numpy.zeros((self.actor_h2_dim, 1)))
+        return action
 
     def select_exploratory_action(self, state):
+        if(len(self.buffer) < self.texpl):
+            return self.select_random_action(state)
         return (numpy.clip(numpy.array(self.select_action(state)) + numpy.random.normal(0, self.sigma), self.action_min, self.action_max)).tolist()
 
     def q_loss (self, ohm, delta_i):
