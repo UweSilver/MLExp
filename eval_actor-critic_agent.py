@@ -10,11 +10,11 @@ from matplotlib import pyplot
 agent_seed = 100
 eval_seed = 12
 
-train_target = 5
+train_target = 3
 episode_step_count = 200
-train_step_target = 100000
+train_step_target = 15*200
 train_episode_target = int(train_step_target / episode_step_count)
-eval_episode_count = 50
+eval_episode_count = 15
 eval_episode_delta = int(train_episode_target / 10)
 
 def train_once(train_number):

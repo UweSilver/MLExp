@@ -13,6 +13,7 @@ def train_agent(agent, seed, episode_count):
     #random.seed(seed)
     state = env.reset()
     for e in (range(0, episode_count)):
+        print("episode: " + str(e))
         while True:
             # env.render()
             action = agent.select_exploratory_action(state)
