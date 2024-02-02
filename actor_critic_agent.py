@@ -62,12 +62,45 @@ class ActorCriticAgent(Agent):
         self.critic_b_0 = numpy.random.randn(self.mid_h_dim, 1)* 0.00000001
         self.critic_b_1 = numpy.random.randn(self.mid_h_dim, 1)* 0.00000001
         self.critic_b_2 = numpy.random.randn( self.critic_h3_dim, 1) * 0.00000001
+
+        #method 0
+        self.actor_W_bar_0 = self.actor_W_0
+        self.actor_W_bar_1 = self.actor_W_1
+        self.actor_b_bar_0 = self.actor_b_0
+        self.actor_b_bar_1 = self.actor_b_1
+        self.critic_W_bar_0 = self.critic_W_0
+        self.critic_W_bar_1 = self.critic_W_1
+        self.critic_W_bar_2 = self.critic_W_2
+        self.critic_b_bar_0 = self.critic_b_0
+        self.critic_b_bar_1 = self.critic_b_1
+        self.critic_b_bar_2 = self.critic_b_2
+
+        #method 3
+        self.critic_W_sub_0 = numpy.random.randn(self.mid_h_dim, self.critic_h0_dim)* 0.00000001
+        self.critic_W_sub_1 = numpy.random.randn(self.mid_h_dim, self.mid_h_dim)* 0.00000001
+        self.critic_W_sub_2 = numpy.random.randn(self.critic_h3_dim, self.mid_h_dim)* 0.00000001
+        self.critic_b_sub_0 = numpy.random.randn(self.mid_h_dim, 1)* 0.00000001
+        self.critic_b_sub_1 = numpy.random.randn(self.mid_h_dim, 1)* 0.00000001
+        self.critic_b_sub_2 = numpy.random.randn( self.critic_h3_dim, 1) * 0.00000001
+
         self.action_max = 2.0
         self.action_min = -2.0
-        self.epsilon = 0.05
         self.buffer = []
         self.batch_size = 256
-        self.texpl = 10000
+        self.texpl = 100
+
+        self.method0 = False
+        self.tau = 0.005
+
+        self.method1 = False
+        self.sigma_target = 0.2
+        self.c = 0.5
+
+        self.method2 = False
+        self.d = 2
+        self.t = 0
+
+        self.method3 = False
         return
     
     def Qohm(self, state, action):
@@ -83,6 +116,32 @@ class ActorCriticAgent(Agent):
                               h2, input_sum_2, h3)
         return h3
     
+    def Qohm_bar(self, state, action):
+        h0 = numpy.concatenate((numpy.array(state).reshape((3, 1)), numpy.array(action).reshape(1, 1))).reshape((self.critic_h0_dim, 1))
+        input_sum_0 = self.critic_W_bar_0 @ h0 + self.critic_b_bar_0
+        h1 = relu(input_sum_0)
+        input_sum_1 = self.critic_W_bar_1 @ h1 + self.critic_b_bar_1
+        h2 = relu(input_sum_1)
+        input_sum_2 = self.critic_W_bar_2 @ h2 + self.critic_b_bar_2
+        h3 = input_sum_2
+        self.critic_bar_result = (h0, input_sum_0, 
+                              h1, input_sum_1, 
+                              h2, input_sum_2, h3)
+        return h3
+    
+    def Qohm_sub(self, state, action):
+        h0 = numpy.concatenate((numpy.array(state).reshape((3, 1)), numpy.array(action).reshape(1, 1))).reshape((self.critic_h0_dim, 1))
+        input_sum_0 = self.critic_W_sub_0 @ h0 + self.critic_b_sub_0
+        h1 = relu(input_sum_0)
+        input_sum_1 = self.critic_W_sub_1 @ h1 + self.critic_b_sub_1
+        h2 = relu(input_sum_1)
+        input_sum_2 = self.critic_W_sub_2 @ h2 + self.critic_b_sub_2
+        h3 = input_sum_2
+        self.critic_sub_result = (h0, input_sum_0, 
+                              h1, input_sum_1, 
+                              h2, input_sum_2, h3)
+        return h3
+    
     def Pithete(self, state):
         h0 = numpy.array(state).reshape((3, 1))
         input_sum_0 = self.actor_W_0 @ h0
@@ -90,6 +149,15 @@ class ActorCriticAgent(Agent):
         input_sum_1 = self.actor_W_1 @ h1
         h2 = gh(input_sum_1, self.action_max, self.action_min)
         self.actor_result = (h0, input_sum_0, h1, input_sum_1, h2)
+        return h2
+    
+    def Pithete_bar(self, state):
+        h0 = numpy.array(state).reshape((3, 1))
+        input_sum_0 = self.actor_W_bar_0 @ h0
+        h1 = relu(input_sum_0)
+        input_sum_1 = self.actor_W_bar_1 @ h1
+        h2 = gh(input_sum_1, self.action_max, self.action_min)
+        self.actor_bar_result = (h0, input_sum_0, h1, input_sum_1, h2)
         return h2
     
     def select_action(self, state):
@@ -127,12 +195,51 @@ class ActorCriticAgent(Agent):
         
         batch = random.sample(self.buffer, self.batch_size)
         critic_grad_2 = 0
+        critic_grad_sub_2 = 0
         for (state, action, next_state, reward, done) in batch:
-            critic_delta = reward + (1 - done) * self.critic_gamma * self.Qohm(next_state, self.Pithete(next_state)) 
-            critic_grad_2 = critic_grad_2 + self.q_loss_prime(critic_delta, self.critic_result[6]) 
-        critic_grad_2 = critic_grad_2 / self.batch_size
+            critic_delta = 0
+            if self.method0:
+                a = self.Pithete_bar(next_state)
+            else:
+                a = self.Pithete(next_state)
 
-        (h0, input_sum_0, h1, input_sum_1, h2, input_sum_2, h3) = self.critic_result
+            if self.method1:
+                a = numpy.clip(a + numpy.clip(numpy.random.normal(0, self.sigma_target), -self.c, self.c), self.action_min, self.action_max)
+                
+            if self.method0:
+                value = self.Qohm_bar(next_state, a)
+                if self.method3:
+                    sub = self.Qohm_sub(next_state, a)
+                    if value[0] > sub[0]:
+                        value = sub
+                
+                critic_delta = reward + (1 - done) * self.critic_gamma * value
+            else:
+                a = self.Pithete(next_state)
+                value = self.Qohm(next_state, a)
+                if self.method3:
+                    sub = self.Qohm_sub(next_state, a)
+                    if value[0] > sub[0]:
+                        value = sub
+                critic_delta = reward + (1 - done) * self.critic_gamma * value
+
+            if self.method0:
+                critic_grad_2 = critic_grad_2 + self.q_loss_prime(critic_delta, self.critic_bar_result[6]) 
+                if self.method3:
+                    critic_grad_sub_2 = critic_grad_sub_2 + self.q_loss_prime(critic_delta, self.critic_sub_result[6])
+            else:
+                critic_grad_2 = critic_grad_2 + self.q_loss_prime(critic_delta, self.critic_result[6]) 
+                if self.method3:
+                    critic_grad_sub_2 = critic_grad_sub_2 + self.q_loss_prime(critic_delta, self.critic_sub_result[6])
+
+        critic_grad_2 = critic_grad_2 / self.batch_size
+        if self.method3:
+            critic_grad_sub_2 = critic_grad_sub_2 / self.batch_size
+
+        if self.method0:
+            (h0, input_sum_0, h1, input_sum_1, h2, input_sum_2, h3) = self.critic_bar_result
+        else:
+            (h0, input_sum_0, h1, input_sum_1, h2, input_sum_2, h3) = self.critic_result
         mid = (critic_grad_2)
         critic_grad_2_x = sum_prime_x(self.critic_W_2, input_sum_2).transpose() @  mid
         critic_grad_2_w = sum_prime_w(input_sum_2, self.critic_W_2) *  mid
@@ -155,6 +262,43 @@ class ActorCriticAgent(Agent):
         self.critic_W_0 = self.critic_W_0 - self.critic_alpha * critic_grad_0_w
         self.critic_b_0 = self.critic_b_0 - self.critic_alpha * critic_grad_0_b
 
+        if self.method3:
+            (h0, input_sum_0, h1, input_sum_1, h2, input_sum_2, h3) = self.critic_sub_result
+            mid = (critic_grad_sub_2)
+            critic_grad_sub_2_x = sum_prime_x(self.critic_W_sub_2, input_sum_2).transpose() @  mid
+            critic_grad_sub_2_w = sum_prime_w(input_sum_2, self.critic_W_sub_2) *  mid
+            critic_grad_sub_2_b = sum_prime_b(self.critic_b_sub_2) *  mid
+
+            mid =     (relu_prime(input_sum_1) * critic_grad_sub_2_x)
+            critic_grad_sub_1_x = sum_prime_x(self.critic_W_sub_1, h1).transpose() @ mid
+            critic_grad_sub_1_w = sum_prime_w(h1, self.critic_W_sub_1) *  mid
+            critic_grad_sub_1_b = sum_prime_b(self.critic_b_sub_1) * mid
+
+            mid = (relu_prime(input_sum_0) * critic_grad_sub_1_x)
+            critic_grad_sub_0_w = sum_prime_w(h0, self.critic_W_sub_0)*  numpy.full(self.critic_W_sub_0.shape, mid)
+            critic_grad_sub_0_b = sum_prime_b(self.critic_b_sub_0) *  mid
+
+            self.critic_W_sub_2 = self.critic_W_sub_2 - self.critic_alpha * critic_grad_sub_2_w
+            self.critic_b_sub_2 = self.critic_b_sub_2 - self.critic_alpha * critic_grad_sub_2_b
+            self.critic_W_sub_1 = self.critic_W_sub_1 - self.critic_alpha * critic_grad_sub_1_w
+            self.critic_b_sub_1 = self.critic_b_sub_1 - self.critic_alpha * critic_grad_sub_1_b
+            self.critic_W_sub_0 = self.critic_W_sub_0 - self.critic_alpha * critic_grad_sub_0_w
+            self.critic_b_sub_0 = self.critic_b_sub_0 - self.critic_alpha * critic_grad_sub_0_b
+        
+        if self.method2:
+            self.t = self.t + 1
+            if self.t % self.d == 0:
+                return
+
+
+        if self.method0:
+            self.critic_W_bar_0 = self.critic_W_bar_0 * (1 - self.tau) + self.critic_W_0 * self.tau
+            self.critic_W_bar_1 = self.critic_W_bar_1 * (1 - self.tau) + self.critic_W_1 * self.tau
+            self.critic_W_bar_2 = self.critic_W_bar_2 * (1 - self.tau) + self.critic_W_2 * self.tau
+            self.critic_b_bar_0 = self.critic_b_bar_0 * (1 - self.tau) + self.critic_b_0 * self.tau
+            self.critic_b_bar_1 = self.critic_b_bar_1 * (1 - self.tau) + self.critic_b_1 * self.tau
+            self.critic_b_bar_2 = self.critic_b_bar_2 * (1 - self.tau) + self.critic_b_2 * self.tau
+
         (h0, input_sum_0, h1, input_sum_1, h2) = self.actor_result
         actor_grad_1 = self.Qohm(state, h2).reshape((1, 1))
         
@@ -171,6 +315,12 @@ class ActorCriticAgent(Agent):
         self.actor_W_0 = self.actor_W_0 - self.actor_alpha * actor_grad_0_w
         self.actor_b_0 = self.actor_b_0 - self.actor_alpha * actor_grad_0_b
 
+        if self.method0:
+            self.actor_W_bar_0 = self.actor_W_bar_0 * (1 - self.tau) + self.actor_W_0 * self.tau
+            self.actor_W_bar_1 = self.actor_W_bar_1 * (1 - self.tau) + self.actor_W_1 * self.tau
+            self.actor_b_bar_0 = self.actor_b_bar_0 * (1 - self.tau) + self.actor_b_0 * self.tau
+            self.actor_b_bar_1 = self.actor_b_bar_1 * (1 - self.tau) + self.actor_b_1 * self.tau
+
         pass
 
     def save_models(self, path):
@@ -185,6 +335,26 @@ class ActorCriticAgent(Agent):
         numpy.savetxt(path + "_critic_b_1", self.critic_b_1)
         numpy.savetxt(path + "_critic_b_2", self.critic_b_2)
 
+        if self.method0:
+            numpy.savetxt(path + "_actor_W_bar_0", self.actor_W_bar_0)
+            numpy.savetxt(path + "_actor_W_bar_1", self.actor_W_bar_1)
+            numpy.savetxt(path + "_actor_b_bar_0", self.actor_b_bar_0)
+            numpy.savetxt(path + "_actor_b_bar_1", self.actor_b_bar_1)
+            numpy.savetxt(path + "_critic_W_bar_0", self.critic_W_bar_0)
+            numpy.savetxt(path + "_critic_W_bar_1", self.critic_W_bar_1)
+            numpy.savetxt(path + "_critic_W_bar_2", self.critic_W_bar_2)
+            numpy.savetxt(path + "_critic_b_bar_0", self.critic_b_bar_0)
+            numpy.savetxt(path + "_critic_b_bar_1", self.critic_b_bar_1)
+            numpy.savetxt(path + "_critic_b_bar_2", self.critic_b_bar_2)
+
+        if self.method3:
+            numpy.savetxt(path + "_critic_W_sub_0", self.critic_W_sub_0)
+            numpy.savetxt(path + "_critic_W_sub_1", self.critic_W_sub_1)
+            numpy.savetxt(path + "_critic_W_sub_2", self.critic_W_sub_2)
+            numpy.savetxt(path + "_critic_b_sub_0", self.critic_b_sub_0)
+            numpy.savetxt(path + "_critic_b_sub_1", self.critic_b_sub_1)
+            numpy.savetxt(path + "_critic_b_sub_2", self.critic_b_sub_2)
+
         pass
 
     def load_models(self, path):
@@ -198,5 +368,25 @@ class ActorCriticAgent(Agent):
         self.critic_b_0 = numpy.loadtxt(path + "_critic_b_0")
         self.critic_b_1 = numpy.loadtxt(path + "_critic_b_1")
         self.critic_b_2 = numpy.loadtxt(path + "_critic_b_2")
+
+        if self.method0:
+            self.actor_W_bar_0 = numpy.loadtxt(path + "_actor_W_bar_0")
+            self.actor_W_bar_1 = numpy.loadtxt(path + "_actor_W_bar_1")
+            self.actor_b_bar_0 = numpy.loadtxt(path + "_actor_b_bar_0")
+            self.actor_b_bar_1 = numpy.loadtxt(path + "_actor_b_bar_1")
+            self.critic_W_bar_0 = numpy.loadtxt(path + "_critic_W_bar_0")
+            self.critic_W_bar_1 = numpy.loadtxt(path + "_critic_W_bar_1")
+            self.critic_W_bar_2 = numpy.loadtxt(path + "_critic_W_bar_2")
+            self.critic_b_bar_0 = numpy.loadtxt(path + "_critic_b_bar_0")
+            self.critic_b_bar_1 = numpy.loadtxt(path + "_critic_b_bar_1")
+            self.critic_b_bar_2 = numpy.loadtxt(path + "_critic_b_bar_2")
+
+        if self.method3:
+            self.critic_W_sub_0 = numpy.loadtxt(path + "_critic_W_sub_0")
+            self.critic_W_sub_1 = numpy.loadtxt(path + "_critic_W_sub_1")
+            self.critic_W_sub_2 = numpy.loadtxt(path + "_critic_W_sub_2")
+            self.critic_b_sub_0 = numpy.loadtxt(path + "_critic_b_sub_0")
+            self.critic_b_sub_1 = numpy.loadtxt(path + "_critic_b_sub_1")
+            self.critic_b_sub_2 = numpy.loadtxt(path + "_critic_b_sub_2")
         pass
     

@@ -10,9 +10,9 @@ from matplotlib import pyplot
 agent_seed = 100
 eval_seed = 12
 
-train_target = 3
+train_target = 2
 episode_step_count = 200
-train_step_target = 15*200
+train_step_target = 5000
 train_episode_target = int(train_step_target / episode_step_count)
 eval_episode_count = 15
 eval_episode_delta = int(train_episode_target / 10)
@@ -52,11 +52,13 @@ def main():
                 for i in range(0, len(r)):
                     result[train_count * eval_episode_count + i] = (float)(r[i])
             q75, q25 = np.percentile(result, [75, 25])
-            q75s.append(q75)
-            q25s.append(q25)
             limit_low = q25 - 1.5 * (q75 - q25)
             limit_high = q75 + 1.5 * (q75 - q25)
-            result.all(limit_low < result < limit_high)
+            result = result[np.where(limit_low < result)]
+            result = result[np.where(result < limit_high)]
+            q75, q25 = np.percentile(result, [75, 25])
+            q75s.append(q75)
+            q25s.append(q25)
             results.append(result)
             averages.append(np.mean(result))
             np.savetxt("out/results/" + "actor-crit" + str(train_count) + "_" + str(train_episode_count), result)
