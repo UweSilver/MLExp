@@ -34,6 +34,8 @@ def main():
     for t in trainings:
         t.join()
 
+    # train_once(0)
+
     print("start evalate")
 
     results = []
@@ -49,11 +51,14 @@ def main():
                 r = eval_agent.eval_agent(agent=agent, eval_episode_count=eval_episode_count, eval_env_seed=eval_seed+train_count, draw=((train_count == 0) and (train_episode_count >2000)))
                 for i in range(0, len(r)):
                     result[train_count * eval_episode_count + i] = (float)(r[i])
-            results.append(result)
-            averages.append(np.mean(result))
             q75, q25 = np.percentile(result, [75, 25])
             q75s.append(q75)
             q25s.append(q25)
+            limit_low = q25 - 1.5 * (q75 - q25)
+            limit_high = q75 + 1.5 * (q75 - q25)
+            result.all(limit_low < result < limit_high)
+            results.append(result)
+            averages.append(np.mean(result))
             np.savetxt("out/results/" + "actor-crit" + str(train_count) + "_" + str(train_episode_count), result)
 
     x = np.linspace(0, train_episode_target - eval_episode_delta, len(averages))

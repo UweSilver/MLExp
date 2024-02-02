@@ -25,10 +25,6 @@ def sum_prime_x(w, x):
     return w
 
 def sum_prime_w(x, w):
-    # print("sum_prime_w")
-    # print(x.shape)
-    # print(w.shape)
-    # print(numpy.full(w.shape, x.transpose()).shape)
     return numpy.full(w.shape, x.transpose())
 
 def sum_prime_b(b):
@@ -38,7 +34,7 @@ def gh(x, a_max, a_min):
     return (a_max + a_min) / 2.0 + (a_max - a_min) / 2.0 * numpy.tanh(x)
 
 def gh_prime(x, a_max, a_min):
-    return (a_max - a_min) / 2.0 / (numpy.cosh(x)**2)
+    return (a_max - a_min) / (2.0 * (numpy.cosh(x)**2))
 
 class ActorCriticAgent(Agent):
     def __init__(self, seed) -> None:
@@ -51,21 +47,21 @@ class ActorCriticAgent(Agent):
         self.mid_h_dim = 256
         self.actor_H = 2
         self.critic_H = 3
-        self.actor_gamma = 0.1
-        self.critic_gamma = 0.1
+        self.actor_gamma = 0.99
+        self.critic_gamma = 0.99
         self.actor_alpha = 0.003
         self.critic_alpha = 0.003
         self.sigma = 0.1
-        self.actor_W_0 = numpy.zeros((self.mid_h_dim, self.actor_h0_dim))
-        self.actor_W_1 = numpy.zeros((self.actor_h2_dim, self.mid_h_dim))
-        self.actor_b_0 = numpy.zeros((self.mid_h_dim, 1))
-        self.actor_b_1 = numpy.zeros((self.actor_h2_dim, 1))
-        self.critic_W_0 = numpy.zeros((self.mid_h_dim, self.critic_h0_dim))
-        self.critic_W_1 = numpy.zeros((self.mid_h_dim, self.mid_h_dim))
-        self.critic_W_2 = numpy.zeros((self.critic_h3_dim, self.mid_h_dim))
-        self.critic_b_0 = numpy.zeros(( self.mid_h_dim, 1))
-        self.critic_b_1 = numpy.zeros((self.mid_h_dim, 1))
-        self.critic_b_2 = numpy.zeros(( self.critic_h3_dim, 1))
+        self.actor_W_0 = numpy.random.randn(self.mid_h_dim, self.actor_h0_dim)* 0.00000001
+        self.actor_W_1 = numpy.random.randn(self.actor_h2_dim, self.mid_h_dim)* 0.00000001
+        self.actor_b_0 = numpy.random.randn(self.mid_h_dim, 1)* 0.00000001
+        self.actor_b_1 = numpy.random.randn(self.actor_h2_dim, 1)* 0.00000001
+        self.critic_W_0 = numpy.random.randn(self.mid_h_dim, self.critic_h0_dim)* 0.00000001
+        self.critic_W_1 = numpy.random.randn(self.mid_h_dim, self.mid_h_dim)* 0.00000001
+        self.critic_W_2 = numpy.random.randn(self.critic_h3_dim, self.mid_h_dim)* 0.00000001
+        self.critic_b_0 = numpy.random.randn(self.mid_h_dim, 1)* 0.00000001
+        self.critic_b_1 = numpy.random.randn(self.mid_h_dim, 1)* 0.00000001
+        self.critic_b_2 = numpy.random.randn( self.critic_h3_dim, 1) * 0.00000001
         self.action_max = 2.0
         self.action_min = -2.0
         self.epsilon = 0.05
@@ -81,7 +77,7 @@ class ActorCriticAgent(Agent):
         input_sum_1 = self.critic_W_1 @ h1 + self.critic_b_1
         h2 = relu(input_sum_1)
         input_sum_2 = self.critic_W_2 @ h2 + self.critic_b_2
-        h3 = gh(input_sum_2, self.action_max, self.action_min)
+        h3 = input_sum_2
         self.critic_result = (h0, input_sum_0, 
                               h1, input_sum_1, 
                               h2, input_sum_2, h3)
@@ -92,7 +88,7 @@ class ActorCriticAgent(Agent):
         input_sum_0 = self.actor_W_0 @ h0
         h1 = relu(input_sum_0)
         input_sum_1 = self.actor_W_1 @ h1
-        h2 = input_sum_1
+        h2 = gh(input_sum_1, self.action_max, self.action_min)
         self.actor_result = (h0, input_sum_0, h1, input_sum_1, h2)
         return h2
     
@@ -102,13 +98,19 @@ class ActorCriticAgent(Agent):
     
     def select_random_action(self, state):
         action = [random.random() - 0.5 * 4.0]
-        self.actor_result = (numpy.array(state).reshape((3, 1)), numpy.zeros((self.mid_h_dim, 1)), numpy.zeros((self.mid_h_dim, 1)), numpy.zeros((self.actor_h2_dim, 1)), numpy.zeros((self.actor_h2_dim, 1)))
+        h0 = numpy.array(state).reshape((3, 1))
+        input_sum_0 = self.actor_W_0 @ h0
+        h1 = relu(input_sum_0)
+        input_sum_1 = self.actor_W_1 @ h1
+        h2 = gh(input_sum_1, self.action_max, self.action_min)
+        self.actor_result = (h0, input_sum_0, h1, input_sum_1, h2)
         return action
 
     def select_exploratory_action(self, state):
         if(len(self.buffer) < self.texpl):
             return self.select_random_action(state)
-        return (numpy.clip(numpy.array(self.select_action(state)) + numpy.random.normal(0, self.sigma), self.action_min, self.action_max)).tolist()
+        else:
+            return (numpy.clip(numpy.array(self.select_action(state)) + numpy.random.normal(0, self.sigma), self.action_min, self.action_max)).tolist()
 
     def q_loss (self, ohm, delta_i):
         return (delta_i - ohm)**2.0
@@ -124,18 +126,16 @@ class ActorCriticAgent(Agent):
             return
         
         batch = random.sample(self.buffer, self.batch_size)
-        critic_delta = 0
         critic_grad_2 = 0
         for (state, action, next_state, reward, done) in batch:
-            critic_delta = critic_delta + reward + (1 - done) * self.critic_gamma * self.Qohm(next_state, action)
+            critic_delta = reward + (1 - done) * self.critic_gamma * self.Qohm(next_state, self.Pithete(next_state)) 
             critic_grad_2 = critic_grad_2 + self.q_loss_prime(critic_delta, self.critic_result[6]) 
-
         critic_grad_2 = critic_grad_2 / self.batch_size
 
         (h0, input_sum_0, h1, input_sum_1, h2, input_sum_2, h3) = self.critic_result
-        mid = (gh_prime(input_sum_2, self.action_max, self.action_min)* critic_grad_2)
-        critic_grad_2_x = sum_prime_x(self.critic_W_2, h2).transpose() @  mid
-        critic_grad_2_w = sum_prime_w(h2, self.critic_W_2) *  mid
+        mid = (critic_grad_2)
+        critic_grad_2_x = sum_prime_x(self.critic_W_2, input_sum_2).transpose() @  mid
+        critic_grad_2_w = sum_prime_w(input_sum_2, self.critic_W_2) *  mid
         critic_grad_2_b = sum_prime_b(self.critic_b_2) *  mid
         
         mid =     (relu_prime(input_sum_1) * critic_grad_2_x)
@@ -147,6 +147,7 @@ class ActorCriticAgent(Agent):
         critic_grad_0_w = sum_prime_w(h0, self.critic_W_0)*  numpy.full(self.critic_W_0.shape, mid) 
         critic_grad_0_b = sum_prime_b(self.critic_b_0) *  mid
 
+
         self.critic_W_2 = self.critic_W_2 - self.critic_alpha * critic_grad_2_w
         self.critic_b_2 = self.critic_b_2 - self.critic_alpha * critic_grad_2_b
         self.critic_W_1 = self.critic_W_1 - self.critic_alpha * critic_grad_1_w
@@ -157,9 +158,10 @@ class ActorCriticAgent(Agent):
         (h0, input_sum_0, h1, input_sum_1, h2) = self.actor_result
         actor_grad_1 = self.Qohm(state, h2).reshape((1, 1))
         
-        actor_grad_1_x = sum_prime_x(self.actor_W_1, h2).transpose() @ actor_grad_1
-        actor_grad_1_w = sum_prime_w(h1, self.actor_W_1)* actor_grad_1 
-        actor_grad_1_b = sum_prime_b(self.actor_b_1) * actor_grad_1
+        mid = (gh_prime(input_sum_1, self.action_max, self.action_min) * actor_grad_1)
+        actor_grad_1_x = sum_prime_x(self.actor_W_1, h2).transpose() @ mid
+        actor_grad_1_w = sum_prime_w(h1, self.actor_W_1)* mid
+        actor_grad_1_b = sum_prime_b(self.actor_b_1) * mid
 
         actor_grad_0_w = sum_prime_w(h0, self.actor_W_0) * numpy.full(self.actor_W_0.shape, (relu_prime(input_sum_0).reshape((256, 1))*actor_grad_1_x))
         actor_grad_0_b = sum_prime_b(self.actor_b_0) * ( relu_prime(input_sum_0) *actor_grad_1_x)
